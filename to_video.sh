@@ -2,8 +2,10 @@
 
 function print_help() {
 	echo "Convert all jpeg images in current directory to video"
-	echo " First parameter: FPS"
-	echo " Second parameter: Output video file name"
+	echo
+	echo "$0 fps output_filename"
+	echo " fps: FPS of the video"
+	echo " output_filename: Output video file name"
 	exit 1
 }
 
