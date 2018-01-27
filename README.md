@@ -6,6 +6,9 @@ a specific interval and convert these into a time-laspe video.
 ## Features
 
 * Grab preview image at given intervals
+    * Detect and skip similar images
+    * Detect and skip dark images
+* Script to convert all images to video
 
 ## grab_cam.py
 
