@@ -8,6 +8,7 @@ a specific interval and convert these into a time-laspe video.
 * Grab preview image at given intervals
     * Detect and skip similar images
     * Detect and skip dark images
+    * Honour daylight time using https://sunrise-sunset.org/
 * Script to convert all images to video
 
 ## grab_cam.py
@@ -18,13 +19,24 @@ regularly, this is what is downloaded using this script.
 
 ### Command line
 
-grab_cam.py *interval* *url* *target_directory* *light_level*
+    usage: grab_cam.py [-h] [-l, --light LIGHT_PERCENT]
+                    [-d, --daylight DAYLIGHT DAYLIGHT]
+                    interval url target_dir
 
-* *interval*: the interval in seconds (default: 60)
-* *url*: the URL from where to grab the image
-* *target_directory*: the directory to save the files
-* *light_level*: Average B/W light level in percentage. Images below this 
-  threshold are skipped.
+    positional arguments:
+    interval              Interval betewwn grabs, in secends
+    url                   URL of the image
+    target_dir            Target directory
+
+    optional arguments:
+    -h, --help            show this help message and exit
+    -l, --light LIGHT_PERCENT
+                            Image are discarded below this B/W light level in
+                            percent
+    -d, --daylight DAYLIGHT DAYLIGHT
+                            Longetude and latitude to only grab during
+                            astronomical daylight hours
+
 
 ## to_video.sh
 
@@ -37,6 +49,5 @@ Convert all jpeg images in current directory to video.
 
 ## Dependecies
 
-* tqdm
-* PIL
+* Pillow
 * mencoder
