@@ -216,6 +216,20 @@ class Daytime(object):
         return (self.up_time, self.down_time)
 
 
+def NamedTimer(name, interval, function, *args, **kwargs):
+    """Factory function to create named Timer objects.
+
+      Timers call a function after a specified number of seconds:
+
+          t = Timer('Name', 30.0, function)
+          t.start()
+          t.cancel()  # stop the timer's action if it's still waiting
+    """
+    timer = threading.Timer(interval, function, *args, **kwargs)
+    timer.name = name
+    return timer
+
+
 def main():
     """
     Main entry point
@@ -238,6 +252,9 @@ def main():
     logging.info("Directory:\t\t\t%s", args.target_dir)
     logging.info("Light level threshold:\t%d%%", args.light_percent)
 
+    daytime_thread = None
+    webcam_thread = None
+
     if len(args.daylight) == 2:
         daytime = Daytime(args.daylight[0], args.daylight[1])
 
@@ -247,8 +264,9 @@ def main():
             """
             logging.debug("Starting new daytime worker")
             daytime.update()
-            daytime_thread = threading.Timer(43200,
-                                             daytime_worker)
+            daytime_thread = NamedTimer("DaytimeThread",
+                                        43200,
+                                        daytime_worker)
             daytime_thread.start()
 
         daytime_worker()
@@ -313,9 +331,10 @@ def main():
         interval -= timeit.default_timer() - start_time
 
         logging.info("Waiting {:.0f} seconds".format(interval))
-        webcam_thread = threading.Timer(interval,
-                                        webcam_worker,
-                                        args=(last_filename, skipped, interval))
+        webcam_thread = NamedTimer("WebcamThread",
+                                   interval,
+                                   webcam_worker,
+                                   args=(last_filename, skipped, interval))
         webcam_thread.start()
 
     webcam_worker(None, 0, args.interval)
