@@ -10,7 +10,6 @@ import threading
 from io import BytesIO
 import time
 import timeit
-import schedule
 import requests
 from PIL import Image
 
@@ -183,9 +182,9 @@ class Daytime(object):
                 return utc_time
 
             self.up_time = get_utc(
-                daytime['results']['astronomical_twilight_begin'])
+                daytime['results']['civil_twilight_begin'])
             self.down_time = get_utc(
-                daytime['results']['astronomical_twilight_end'])
+                daytime['results']['civil_twilight_end'])
             logging.info("Daylight begins:\t\t%s",
                          self.up_time.strftime('%Y-%m-%d %H:%M:%S UTC'))
             logging.info("Daylight ends:\t\t%s",
@@ -216,7 +215,10 @@ class Daytime(object):
         return (self.up_time, self.down_time)
 
 
-def NamedTimer(name, interval, function, *args, **kwargs):
+TIMERS = {}
+
+
+def named_timer(name, interval, function, *args, **kwargs):
     """Factory function to create named Timer objects.
 
       Timers call a function after a specified number of seconds:
@@ -227,6 +229,9 @@ def NamedTimer(name, interval, function, *args, **kwargs):
     """
     timer = threading.Timer(interval, function, *args, **kwargs)
     timer.name = name
+    TIMERS[name] = {}
+    TIMERS[name]['start'] = datetime.datetime.now()
+    TIMERS[name]['interval'] = interval
     return timer
 
 
@@ -252,9 +257,6 @@ def main():
     logging.info("Directory:\t\t\t%s", args.target_dir)
     logging.info("Light level threshold:\t%d%%", args.light_percent)
 
-    daytime_thread = None
-    webcam_thread = None
-
     if len(args.daylight) == 2:
         daytime = Daytime(args.daylight[0], args.daylight[1])
 
@@ -264,9 +266,9 @@ def main():
             """
             logging.debug("Starting new daytime worker")
             daytime.update()
-            daytime_thread = NamedTimer("DaytimeThread",
-                                        43200,
-                                        daytime_worker)
+            daytime_thread = named_timer("DaytimeThread",
+                                         21600,
+                                         daytime_worker)
             daytime_thread.start()
 
         daytime_worker()
@@ -296,7 +298,7 @@ def main():
                 daylight = daytime.get()
                 interval = (
                     daylight[0] - datetime.datetime.utcnow()).total_seconds()
-                if interval > 3600:
+                if interval > 3600 or interval < 0:
                     interval = 3600
                 logging.info("Waiting for day light")
 
@@ -311,7 +313,7 @@ def main():
                 if skipped == 5:
                     logging.info("5 images skipped, increasing interval")
                 interval *= 2
-                if interval > 1800:
+                if interval > 1500:
                     logging.info("Resetting interval")
                     interval = args.interval
         elif grabbed == Webcam.SAME:
@@ -322,7 +324,7 @@ def main():
                 if skipped == 5:
                     logging.info("5 images skipped, increasing interval")
                 interval *= 2
-                if interval > 1800:
+                if interval > 1500:
                     logging.info("Resetting interval")
                     interval = args.interval
             else:
@@ -331,23 +333,34 @@ def main():
         interval -= timeit.default_timer() - start_time
 
         logging.info("Waiting {:.0f} seconds".format(interval))
-        webcam_thread = NamedTimer("WebcamThread",
-                                   interval,
-                                   webcam_worker,
-                                   args=(last_filename, skipped, interval))
+        webcam_thread = named_timer("WebcamThread",
+                                    interval,
+                                    webcam_worker,
+                                    args=(last_filename, skipped, interval))
         webcam_thread.start()
 
     webcam_worker(None, 0, args.interval)
 
     logging.info("All threads runnig, press CTRL-C to quit")
+    seconds = 0
+    main_thread = threading.currentThread()
     try:
         while True:
             time.sleep(1)
-            schedule.run_pending()
+            seconds += 1
+            if seconds > 900:
+                seconds = 0
+                for thread in threading.enumerate():
+                    if thread is not main_thread:
+                        elapsed = (datetime.datetime.now() -
+                                   TIMERS[thread.name]['start']).total_seconds()
+                        logging.info("Thread: %s", thread.name)
+                        logging.info("\tWaited:\t\t%d seconds", elapsed)
+                        logging.info("\tWaiting:\t%d seconds",
+                                     TIMERS[thread.name]['interval'] - elapsed)
     except KeyboardInterrupt:
         logging.info("Stopping...")
 
-    main_thread = threading.currentThread()
     for thread in threading.enumerate():
         if thread is not main_thread:
             logging.debug('Stopping %s', thread.getName())

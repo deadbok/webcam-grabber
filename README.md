@@ -42,12 +42,19 @@ regularly, this is what is downloaded using this script.
 
 Convert all jpeg images in current directory to video.
 
- to_video.sh *fps* *output_filename*
+ to_video.sh *fps* *extension* *output_filename*
 
 * *fps*: FPS of the video
+* *extension*: Input image extension
 * *output_filename*: Output video file name
 
 ## Dependecies
 
+### Grabber
+
 * Pillow
+* BeautifulSoup
+
+### Video converter
+
 * mencoder
