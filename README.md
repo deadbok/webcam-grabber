@@ -55,6 +55,18 @@ Convert all jpeg images in current directory to video.
 * Pillow
 * BeautifulSoup
 
+#### Installing (Debian like systems)
+
+As root do:
+
+    apt-get install python3-bs4 python3-pil
+
 ### Video converter
 
 * mencoder
+
+#### Installing (Debian like systems)
+
+As root do:
+
+    apt-get install mencoder 
