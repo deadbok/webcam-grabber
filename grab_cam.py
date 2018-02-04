@@ -194,7 +194,7 @@ class Daytime(object):
         """
         Check if there is daylight.
 
-        :return: True if in dayligth period, False otherwise
+        :return: True if in daylight period, False otherwise
         """
         if self.up_time is None or self.down_time is None:
             logging.error("Error: No daytime information")
@@ -235,41 +235,31 @@ def named_timer(name, interval, function, *args, **kwargs):
     return timer
 
 
-def main():
-    """
-    Main entry point
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('interval', type=int,
-                        help='Interval betewwn grabs, in secends', default=60)
-    parser.add_argument('url', type=str, help='URL of the image')
-    parser.add_argument('target_dir', type=str, help='Target directory')
-    parser.add_argument('-l, --light', type=int, dest='light_percent',
-                        help="Image are discarded below this B/W light level " +
-                        "in percent", default=0)
-    parser.add_argument('-d, --daylight', nargs=2, default=[], dest='daylight',
-                        help='Longetude and latitude to only grab during ' +
-                        'astronomical daylight hours')
-    args = parser.parse_args()
+def start(interval, url, target_dir, light_percent=0, daylight=[]):
+    logging.info("Interval:\t\t\t%d", interval)
+    logging.info("URL:\t\t\t%s", url)
+    logging.info("Directory:\t\t\t%s", target_dir)
+    logging.info("Light level threshold:\t%d%%", light_percent)
 
-    logging.info("Interval:\t\t\t%d", args.interval)
-    logging.info("URL:\t\t\t%s", args.url)
-    logging.info("Directory:\t\t\t%s", args.target_dir)
-    logging.info("Light level threshold:\t%d%%", args.light_percent)
-
-    if len(args.daylight) == 2:
-        daytime = Daytime(args.daylight[0], args.daylight[1])
+    if len(daylight) == 2:
+        daytime = Daytime(daylight[0], daylight[1])
 
         def daytime_worker():
             """
             Worker to update daytime and restart the thread waiting
             """
             logging.debug("Starting new daytime worker")
-            daytime.update()
-            daytime_thread = named_timer("DaytimeThread",
-                                         21600,
-                                         daytime_worker)
-            daytime_thread.start()
+            daytime_wait = 21600
+            try:
+                daytime.update()
+            except:
+                logging.error("Exception during daytime update")
+                daytime_wait = 120
+            finally:
+                daytime_thread = named_timer("DaytimeThread",
+                                             daytime_wait,
+                                             daytime_worker)
+                daytime_thread.start()
 
         daytime_worker()
     else:
@@ -277,71 +267,76 @@ def main():
 
     webcam = Webcam()
 
-    def webcam_worker(last_filename, skipped, interval):
+    def webcam_worker(last_filename, skipped, cur_interval):
         """
-        Worker to grab an image and restat the thread waiting
+        Worker to grab an image and restart the thread waiting
         """
         start_time = timeit.default_timer()
         logging.debug("Starting new webcam worker")
-        filename = "{}.png".format(
-            datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S_UTC'))
-        grabbed = -1
-        if daytime is None:
-            # If we do not care about daytime, just grab the image
-            grabbed = webcam.grab(last_filename, filename,
-                                  args.light_percent, args.url)
-        else:
-            if daytime.check_daylight():
-                grabbed = webcam.grab(
-                    last_filename, filename, args.light_percent, args.url)
+        try:
+            filename = "{}/{}.png".format(
+                target_dir,
+                datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S_UTC'))
+            grabbed = -1
+            if daytime is None:
+                # If we do not care about daytime, just grab the image
+                grabbed = webcam.grab(last_filename, filename,
+                                      light_percent, url)
             else:
-                daylight = daytime.get()
-                interval = (
-                    daylight[0] - datetime.datetime.utcnow()).total_seconds()
-                if interval > 3600 or interval < 0:
-                    interval = 3600
-                logging.info("Waiting for day light")
+                if daytime.check_daylight():
+                    grabbed = webcam.grab(
+                        last_filename, filename, light_percent, url)
+                else:
+                    daylight = daytime.get()
+                    cur_interval = (
+                        daylight[0] - datetime.datetime.utcnow()).total_seconds()
+                    if cur_interval > 3600 or cur_interval < 0:
+                        cur_interval = 3600
+                    logging.info("Waiting for day light")
 
-        if grabbed == Webcam.SAVED:
-            last_filename = filename
-            skipped = 0
-            interval = args.interval
-        elif grabbed == Webcam.TOO_DARK:
-            skipped += 1
-            logging.info("Skipped...%d", skipped)
-            if skipped >= 5:
-                if skipped == 5:
-                    logging.info("5 images skipped, increasing interval")
-                interval *= 2
-                if interval > 1500:
-                    logging.info("Resetting interval")
-                    interval = args.interval
-        elif grabbed == Webcam.SAME:
-            skipped += 1
-            logging.info("Skipped...%d", skipped)
+            if grabbed == Webcam.SAVED:
+                last_filename = filename
+                skipped = 0
+                cur_interval = interval
+            elif grabbed == Webcam.TOO_DARK:
+                skipped += 1
+                logging.info("Skipped...%d", skipped)
+                if skipped >= 5:
+                    if skipped == 5:
+                        logging.info("5 images skipped, increasing interval")
+                    cur_interval *= 2
+                    if cur_interval > 1500:
+                        logging.info("Resetting interval")
+                        cur_interval = interval
+            elif grabbed == Webcam.SAME:
+                skipped += 1
+                logging.info("Skipped...%d", skipped)
 
-            if skipped >= 5:
-                if skipped == 5:
-                    logging.info("5 images skipped, increasing interval")
-                interval *= 2
-                if interval > 1500:
-                    logging.info("Resetting interval")
-                    interval = args.interval
-            else:
-                interval = 5
+                if skipped >= 5:
+                    if skipped == 5:
+                        logging.info("5 images skipped, increasing interval")
+                    cur_interval *= 2
+                    if cur_interval > 1500:
+                        logging.info("Resetting interval")
+                        cur_interval = interval
+                else:
+                    cur_interval = 5
 
-        interval -= timeit.default_timer() - start_time
+            logging.info("Waiting {:.0f} seconds".format(cur_interval))
+        except:
+            logging.error("Exception during webcam grab")
+        finally:
+            cur_interval -= timeit.default_timer() - start_time
 
-        logging.info("Waiting {:.0f} seconds".format(interval))
-        webcam_thread = named_timer("WebcamThread",
-                                    interval,
-                                    webcam_worker,
-                                    args=(last_filename, skipped, interval))
-        webcam_thread.start()
+            webcam_thread = named_timer("WebcamThread",
+                                        cur_interval,
+                                        webcam_worker,
+                                        args=(last_filename, skipped, cur_interval))
+            webcam_thread.start()
 
-    webcam_worker(None, 0, args.interval)
+    webcam_worker(None, 0, interval)
 
-    logging.info("All threads runnig, press CTRL-C to quit")
+    logging.info("All threads running, press CTRL-C to quit")
     seconds = 0
     main_thread = threading.currentThread()
     try:
@@ -365,6 +360,30 @@ def main():
         if thread is not main_thread:
             logging.debug('Stopping %s', thread.getName())
             thread.cancel()
+
+
+def main():
+    """
+    Main entry point
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('interval', type=int,
+                        help='Interval between grabs, in secends', default=60)
+    parser.add_argument('url', type=str, help='URL of the image')
+    parser.add_argument('target_dir', type=str, help='Target directory')
+    parser.add_argument('-l, --light', type=int, dest='light_percent',
+                        help="Image are discarded below this B/W light level " +
+                        "in percent", default=0)
+    parser.add_argument('-d, --daylight', nargs=2, default=[], dest='daylight',
+                        help='Longitude and latitude to only grab during ' +
+                        'astronomical daylight hours')
+    args = parser.parse_args()
+
+    start(args.interval,
+          args.url,
+          args.target_dir,
+          args.light_percent,
+          args.daylight)
 
 
 if __name__ == "__main__":
