@@ -176,8 +176,8 @@ class Daytime(object):
                 """
                 if utc[0] != '0' and utc[1] == ':':
                     utc = "0{}".format(utc)
-                date = datetime.datetime.now().strftime("%Y-%m-%d ")
-                utc_time = datetime.datetime.strptime(
+                date = datetime.now().strftime("%Y-%m-%d ")
+                utc_time = datetime.strptime(
                     date + utc, '%Y-%m-%d %I:%M:%S %p')
                 return utc_time
 
@@ -347,7 +347,7 @@ def start(interval, url, target_dir, light_percent=0, daylight=[]):
                 seconds = 0
                 for thread in threading.enumerate():
                     if thread is not main_thread:
-                        elapsed = (datetime.datetime.now() -
+                        elapsed = (datetime.now() -
                                    TIMERS[thread.name]['start']).total_seconds()
                         logging.info("Thread: %s", thread.name)
                         logging.info("\tWaited:\t\t%d seconds", elapsed)
