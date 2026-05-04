@@ -3,7 +3,7 @@
 Grab an image off the internet at regular intervals.
 """
 import argparse
-import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import threading
@@ -99,8 +99,8 @@ class Webcam(object):
 
         fimage = Image.open(filename)
 
-        spixels = list(self.image.getdata())
-        fpixels = list(fimage.getdata())
+        spixels = list(self.image.get_flattened_data())
+        fpixels = list(fimage.get_flattened_data())
 
         for pixel in range(0, len(spixels)):
             if spixels[pixel] != fpixels[pixel]:
@@ -122,7 +122,7 @@ class Webcam(object):
         if self.image is None:
             logging.error("Error: No image data")
             return 100
-        pixels = list(self.image.getdata())
+        pixels = list(self.image.get_flattened_data())
 
         avg = 0
         npixels = 0
@@ -200,7 +200,7 @@ class Daytime(object):
             logging.error("Error: No daytime information")
             return False
 
-        current_time = datetime.datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         if current_time > self.up_time and current_time < self.down_time:
             return True
 
@@ -230,7 +230,7 @@ def named_timer(name, interval, function, *args, **kwargs):
     timer = threading.Timer(interval, function, *args, **kwargs)
     timer.name = name
     TIMERS[name] = {}
-    TIMERS[name]['start'] = datetime.datetime.now()
+    TIMERS[name]['start'] = datetime.now()
     TIMERS[name]['interval'] = interval
     return timer
 
@@ -276,7 +276,7 @@ def start(interval, url, target_dir, light_percent=0, daylight=[]):
         try:
             filename = "{}/{}.png".format(
                 target_dir,
-                datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S_UTC'))
+                datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S_UTC'))
             grabbed = -1
             if daytime is None:
                 # If we do not care about daytime, just grab the image
@@ -289,7 +289,7 @@ def start(interval, url, target_dir, light_percent=0, daylight=[]):
                 else:
                     daylight = daytime.get()
                     cur_interval = (
-                        daylight[0] - datetime.datetime.utcnow()).total_seconds()
+                        daylight[0] - datetime.now(timezone.utc)).total_seconds()
                     if cur_interval > 3600 or cur_interval < 0:
                         cur_interval = 3600
                     logging.info("Waiting for day light")
@@ -338,7 +338,7 @@ def start(interval, url, target_dir, light_percent=0, daylight=[]):
 
     logging.info("All threads running, press CTRL-C to quit")
     seconds = 0
-    main_thread = threading.currentThread()
+    main_thread = threading.current_thread()
     try:
         while True:
             time.sleep(1)
